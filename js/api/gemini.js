@@ -104,24 +104,44 @@ async function call(model, body, retries = 3) {
     });
     if (res.ok) return res.json();
 
-    // 429 = límite de peticiones. Reintentar respetando la espera que pide
-    // Gemini (o un backoff exponencial), hasta agotar los intentos.
-    if (res.status === 429 && attempt < retries) {
-      const info = await res.clone().json().catch(() => null);
-      const delay = retryDelayMs(info) ?? Math.min(30000, 2000 * 2 ** attempt);
-      await sleep(delay);
-      continue;
-    }
+    // 429 = límite de peticiones. Distinguir "por minuto" (se recupera
+    // esperando) de "por día / cuota agotada" (no sirve reintentar).
     if (res.status === 429) {
+      const info = await res.clone().json().catch(() => null);
+      console.error('Gemini 429 detalle:', JSON.stringify(info));
+      const daily = /PerDay/i.test(JSON.stringify(info || ''));
+
+      if (!daily && attempt < retries) {
+        const delay = retryDelayMs(info) ?? Math.min(30000, 2000 * 2 ** attempt);
+        await sleep(delay);
+        continue;
+      }
+
+      const scope = quotaScope(info);
+      if (daily) {
+        throw new Error(
+          `Cuota de Gemini agotada (${scope}). El plan gratuito tiene un tope por día para ` +
+            'este modelo. Opciones: esperar a que se reinicie (suele ser a medianoche hora del ' +
+            'Pacífico), elegir otro modelo en Ajustes, o activar facturación en Google Cloud.'
+        );
+      }
       throw new Error(
-        'Límite de peticiones de Gemini alcanzado (429). El plan gratuito permite pocas ' +
-          'llamadas por minuto. Prueba: transcribir solo una fuente, subir la duración del ' +
-          'segmento en Ajustes, o elegir un modelo con más cuota (p. ej. gemini-2.5-flash-lite). ' +
-          'Si se agotó la cuota diaria, hay que esperar al día siguiente.'
+        `Límite de peticiones de Gemini (429, ${scope}). Prueba: transcribir solo una fuente, ` +
+          'subir la duración del segmento en Ajustes, o usar gemini-2.5-flash-lite.'
       );
     }
     throw new Error(`Gemini respondió con error (${res.status}): ${await safeError(res)}`);
   }
+}
+
+// Describe el tipo de límite del 429 (por minuto / por día) desde QuotaFailure.
+function quotaScope(errJson) {
+  const details = errJson?.error?.details || [];
+  const qf = details.find((d) => (d['@type'] || '').includes('QuotaFailure'));
+  const id = qf?.violations?.[0]?.quotaId || '';
+  if (/PerDay/i.test(id)) return 'por día';
+  if (/PerMinute/i.test(id)) return 'por minuto';
+  return id || 'límite de cuota';
 }
 
 // Lee el "retryDelay" que Gemini incluye en el error 429 (RetryInfo).
