@@ -1,13 +1,14 @@
 // Configuración por defecto de MinutasWeb.
 // Los valores se pueden sobrescribir desde Ajustes (se guardan en localStorage).
 export const DEFAULTS = {
-  // Modelo de Gemini (multimodal: transcribe audio y genera texto).
-  model: 'gemini-2.5-flash',
+  // Proxy same-origin (función de Vercel) hacia OpenAI. Ver api/[...path].js.
+  apiBase: '/api/v1',
+  // Modelo de transcripción (endpoint /audio/transcriptions).
+  transcribeModel: 'gpt-4o-mini-transcribe',
+  // Modelo de chat para minuta, preguntas y traducción.
+  chatModel: 'gpt-4o-mini',
   language: 'es',
-  // Segmentos algo largos para no pasarse del límite de peticiones por minuto
-  // del plan gratuito de Gemini.
   segmentSeconds: 20,
   // Nivel mínimo de audio (0-100) para considerar que un segmento tiene voz.
-  // Evita mandar silencios a la API.
   silenceThreshold: 4,
 };

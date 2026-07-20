@@ -1,53 +1,52 @@
 # MinutasWeb
 
-Transcribe reuniones en vivo y genera minutas con IA, **todo en el navegador**. Sin instalar nada, sin servidor, sin proxy.
+Transcribe reuniones en vivo y genera minutas con IA, desde el navegador. Es la versión web de una app de escritorio en Python/PyQt5: no hay que instalar nada, se abre una URL y se guarda como favorito.
 
-Es la versión web de una app de escritorio en Python/PyQt5: aquí no hay que instalar Python ni empaquetar nada. Abres una URL, la guardas como favorito y listo. Usa **Google Gemini**, que permite llamarse directamente desde el navegador (a diferencia de OpenAI, que requiere un proxy por su política CORS).
+Usa **OpenAI** (Whisper para transcribir, GPT para las minutas). Como OpenAI no permite llamadas directas desde el navegador (política CORS), la app se sirve **junto con un pequeño proxy** en Vercel, en el mismo dominio: así no hay CORS ni configuración de por medio.
 
 ## Qué hace
 
-- **Transcripción en vivo** de tu micrófono y del audio de una pestaña compartida (para capturar a los demás en Zoom/Meet/Teams del navegador). Cada fuente se muestra etiquetada ("Tú" / "Reunión").
+- **Transcripción en vivo** de tu micrófono y del audio de una pestaña compartida (para capturar a los demás en Zoom/Meet/Teams del navegador). Cada fuente aparece etiquetada ("Tú" / "Reunión").
 - **Minuta automática**: un botón genera un resumen estructurado (título, participantes, puntos, decisiones, acciones, preguntas, conclusiones).
-- **Detección de preguntas** por reglas y con IA, con respuestas generadas bajo demanda.
+- **Detección de preguntas** por reglas y con IA, con respuestas bajo demanda.
 - **Traducción** de la minuta a inglés.
-- **Exportar** la transcripción (`.txt`) y la minuta (`.md`), o copiarlas al portapapeles.
+- **Exportar** transcripción (`.txt`) y minuta (`.md`), o copiarlas.
+
+## Puesta en marcha (una vez)
+
+La app necesita el proxy, así que se despliega en **Vercel** (gratis). GitHub Pages no sirve porque no ejecuta el proxy.
+
+1. Entra a [vercel.com](https://vercel.com) e inicia sesión con tu cuenta de **GitHub**.
+2. **Add New… → Project** → importa el repo **`lrbg/MinutasWeb`**.
+3. No hace falta configurar nada (framework: *Other*, sin build). Pulsa **Deploy**.
+4. Vercel te da una URL, por ejemplo `https://minutasweb.vercel.app`. **Esa** es la que usas y guardas como favorito.
 
 ## Cómo se usa
 
-1. Consigue una **clave API gratuita** en [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (empieza con `AIza...`).
-2. Abre la app (ver *Publicar* abajo) → **Ajustes** → pega la clave. Se guarda **solo en tu navegador** (`localStorage`) y solo se envía a Google.
+1. Abre tu URL de Vercel → **Ajustes**.
+2. Pega tu **clave API de OpenAI** (`sk-...`, de [platform.openai.com](https://platform.openai.com/api-keys)). Se guarda solo en tu navegador y viaja a OpenAI a través del proxy del propio sitio.
 3. Elige las fuentes de audio y pulsa **Grabar**.
    - Para "Audio de pestaña", el navegador te pedirá elegir una pestaña y marcar **"Compartir audio"**.
 4. Al terminar, pulsa **Generar minuta**.
 
 ## Requisitos y límites
 
-- **Navegador**: Chrome o Edge (necesarios para capturar audio de pestaña con `getDisplayMedia`). El micrófono funciona en cualquiera.
-- **Captura de "los demás"**: solo funciona si la reunión corre en una **pestaña del navegador**. Con la app **nativa** de Zoom/Teams, el navegador no puede tomar ese audio; ahí solo se transcribe tu micrófono.
-- **Costo**: usa tu propia clave de Google AI Studio. El plan gratuito tiene un límite de peticiones por minuto; por eso la app transcribe en segmentos de ~15s (configurable). Si te topas con el límite, sube la duración del segmento en Ajustes.
-- El texto aparece cada pocos segundos (por segmento), no palabra por palabra.
-
-## Publicar (GitHub Pages)
-
-Este repo es 100% estático. Para servirlo:
-
-1. Sube estos archivos a la rama `main`.
-2. En GitHub: **Settings → Pages → Source: Deploy from a branch → `main` / root**.
-3. La app queda en `https://lrbg.github.io/MinutasWeb/`. Guárdala como favorito o "Instalar app" (PWA).
-
-Para probar en local basta un servidor estático (por ejemplo `python3 -m http.server`) porque los módulos ES no cargan con `file://`.
+- **Navegador**: Chrome o Edge (para capturar audio de pestaña con `getDisplayMedia`). El micrófono funciona en cualquiera.
+- **Captura de "los demás"**: solo si la reunión corre en una **pestaña del navegador**. Con la app **nativa** de Zoom/Teams, solo se transcribe tu micrófono.
+- **Costo**: usa tu saldo de OpenAI (Whisper se cobra por minuto de audio; las minutas, por tokens). Es de pago, pero sin los límites de cuota gratuita.
 
 ## Estructura
 
 ```
 index.html            # UI
 css/styles.css        # estilos (tema claro/oscuro automático)
+api/[...path].js      # proxy a OpenAI (Edge Function de Vercel)
 js/
   main.js             # arranque
-  config.js           # valores por defecto (modelo, idioma, segmento)
+  config.js           # valores por defecto (proxy, modelos, idioma)
   store.js            # localStorage (clave, ajustes, historial)
   ui.js               # DOM y eventos
-  api/gemini.js       # cliente de Google Gemini (transcribe + genera texto)
+  api/openai.js       # cliente de OpenAI vía el proxy same-origin
   audio/capture.js    # micrófono + pestaña, captura PCM y arma WAV, medidores
   features/
     transcription.js  # orquesta la sesión de transcripción
@@ -59,8 +58,8 @@ manifest.json         # PWA
 
 ## Nota técnica
 
-Gemini acepta audio en WAV/MP3/OGG/FLAC, pero no el `webm/opus` que graba Chrome por defecto. Por eso `capture.js` toma el audio crudo (PCM) con la Web Audio API a 16 kHz y arma un WAV por segmento antes de enviarlo.
+Whisper acepta WAV, así que `capture.js` toma el audio crudo (PCM) con la Web Audio API a 16 kHz y arma un WAV por segmento. El proxy (`api/[...path].js`) reenvía cada petición a `api.openai.com` añadiendo tu clave; no la guarda.
 
 ## Privacidad
 
-Tu clave API y tus transcripciones se guardan **solo en tu navegador**. Las peticiones van directas a la API de Google, sin intermediarios. No hay analítica ni base de datos.
+Tu clave y tus transcripciones se guardan **solo en tu navegador**. El proxy solo reenvía a OpenAI, sin almacenar nada. No hay analítica ni base de datos.

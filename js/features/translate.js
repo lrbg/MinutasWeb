@@ -1,5 +1,5 @@
 // Traducción de texto con GPT (ES <-> EN).
-import { chat } from '../api/gemini.js';
+import { chat } from '../api/openai.js';
 
 export async function translate(text, target = 'en') {
   const lang = target === 'en' ? 'inglés' : 'español';

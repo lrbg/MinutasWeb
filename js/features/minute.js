@@ -1,5 +1,5 @@
 // Genera una minuta estructurada a partir de la transcripción, usando GPT.
-import { chat } from '../api/gemini.js';
+import { chat } from '../api/openai.js';
 
 const SYSTEM_PROMPT = `Eres un experto en redactar minutas a partir de transcripciones de reuniones.
 Genera un resumen estructurado en formato Markdown que incluya, cuando aplique:

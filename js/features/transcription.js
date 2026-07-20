@@ -1,6 +1,6 @@
 // Orquesta una sesión de transcripción: captura -> segmentos -> Whisper -> texto.
 import { AudioCapture } from '../audio/capture.js';
-import { transcribe } from '../api/gemini.js';
+import { transcribe } from '../api/openai.js';
 import { store } from '../store.js';
 import { looksLikeQuestion } from './questions.js';
 
