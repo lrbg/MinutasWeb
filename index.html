@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MinutasWeb — Transcripción y minutas en vivo</title>
+  <meta name="description" content="Transcribe reuniones en vivo y genera minutas con IA, todo en tu navegador. Sin instalar nada." />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>MinutasWeb</h1>
+        <p class="tagline">Transcribe y minuta tus reuniones desde el navegador</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="api-badge" class="badge badge-warn" title="Estado de la clave API">Sin clave API</span>
+      <button id="btn-settings" class="btn btn-ghost" type="button">Ajustes</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Columna principal: transcripción -->
+    <section class="panel panel-transcript">
+      <div class="panel-head">
+        <h2>Transcripción</h2>
+        <div class="sources">
+          <label class="toggle"><input type="checkbox" id="src-mic" checked /> <span>Mi micrófono</span></label>
+          <label class="toggle"><input type="checkbox" id="src-tab" checked /> <span>Audio de pestaña</span></label>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="btn-record" class="btn btn-record" type="button">
+          <span class="dot"></span><span class="btn-record-label">Grabar</span>
+        </button>
+        <div class="levels">
+          <div class="level"><span>Tú</span><div class="meter"><i id="lvl-mic"></i></div></div>
+          <div class="level"><span>Reunión</span><div class="meter"><i id="lvl-tab"></i></div></div>
+        </div>
+        <span id="status" class="status">Listo</span>
+      </div>
+
+      <div id="transcript" class="transcript" aria-live="polite">
+        <p class="empty" id="transcript-empty">La transcripción aparecerá aquí en cuanto empieces a grabar.</p>
+      </div>
+
+      <div class="panel-foot">
+        <button id="btn-minute" class="btn btn-primary" type="button" disabled>Generar minuta</button>
+        <button id="btn-export" class="btn btn-ghost" type="button" disabled>Exportar</button>
+        <button id="btn-copy" class="btn btn-ghost" type="button" disabled>Copiar</button>
+        <button id="btn-clear" class="btn btn-ghost btn-danger-ghost" type="button" disabled>Limpiar</button>
+      </div>
+    </section>
+
+    <!-- Columna lateral: preguntas -->
+    <aside class="panel panel-side">
+      <div class="panel-head">
+        <h2>Preguntas detectadas</h2>
+        <button id="btn-analyze-q" class="btn btn-ghost btn-sm" type="button" disabled>Analizar con IA</button>
+      </div>
+      <div id="questions" class="questions">
+        <p class="empty">Las preguntas del diálogo aparecerán aquí.</p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal de ajustes -->
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Ajustes</h3>
+        <button class="btn btn-ghost btn-sm" data-close-modal type="button">Cerrar</button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span>Clave API de OpenAI</span>
+          <input id="input-apikey" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+          <small>Se guarda solo en este navegador (localStorage) y solo se envía a api.openai.com.</small>
+        </label>
+        <label class="field">
+          <span>Idioma de transcripción</span>
+          <select id="input-language">
+            <option value="es">Español</option>
+            <option value="en">Inglés</option>
+            <option value="pt">Portugués</option>
+            <option value="fr">Francés</option>
+            <option value="">Detección automática</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Duración de cada segmento (segundos)</span>
+          <input id="input-segment" type="number" min="5" max="30" step="1" value="12" />
+          <small>Segmentos más largos = menos llamadas a la API, pero el texto tarda más en aparecer.</small>
+        </label>
+        <details class="field">
+          <summary>Modelos (avanzado)</summary>
+          <label class="subfield">
+            <span>Modelo de transcripción</span>
+            <input id="input-transcribe-model" type="text" value="gpt-4o-mini-transcribe" spellcheck="false" />
+          </label>
+          <label class="subfield">
+            <span>Modelo de chat (minuta/preguntas)</span>
+            <input id="input-chat-model" type="text" value="gpt-4o-mini" spellcheck="false" />
+          </label>
+        </details>
+      </div>
+      <div class="modal-foot">
+        <button id="btn-save-settings" class="btn btn-primary" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de minuta -->
+  <div id="minute-modal" class="modal" hidden>
+    <div class="modal-card modal-lg">
+      <div class="modal-head">
+        <h3>Minuta de la reunión</h3>
+        <button class="btn btn-ghost btn-sm" data-close-modal type="button">Cerrar</button>
+      </div>
+      <div class="modal-body">
+        <div id="minute-status" class="minute-status">Generando minuta…</div>
+        <article id="minute-output" class="minute-output"></article>
+      </div>
+      <div class="modal-foot">
+        <button id="btn-minute-translate" class="btn btn-ghost" type="button">Traducir a inglés</button>
+        <button id="btn-minute-copy" class="btn btn-ghost" type="button">Copiar</button>
+        <button id="btn-minute-download" class="btn btn-primary" type="button">Descargar .md</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

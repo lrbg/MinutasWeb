@@ -1,0 +1,16 @@
+{
+  "name": "MinutasWeb",
+  "short_name": "MinutasWeb",
+  "description": "Transcribe reuniones en vivo y genera minutas con IA, desde el navegador.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%236c8cff'/%3E%3Cpath d='M96 40a20 20 0 0 1 20 20v36a20 20 0 0 1-40 0V60a20 20 0 0 1 20-20zM66 96a30 30 0 0 0 60 0M96 126v22' stroke='white' stroke-width='10' fill='none' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
