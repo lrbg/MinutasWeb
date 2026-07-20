@@ -78,6 +78,22 @@ export async function validateKey() {
   return res.ok;
 }
 
+// Lista los modelos Gemini que TU clave puede usar para generar contenido.
+// La disponibilidad varía por cuenta/región, por eso se consulta en vivo.
+export async function listModels() {
+  const res = await fetch(`${BASE}/models?key=${encodeURIComponent(apiKey())}`);
+  if (!res.ok) {
+    throw new Error(`No se pudo listar modelos (${res.status}): ${await safeError(res)}`);
+  }
+  const data = await res.json();
+  return (data.models || [])
+    .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map((m) => (m.name || '').replace(/^models\//, ''))
+    .filter((n) => n.startsWith('gemini'))
+    // Preferir los flash (más rápidos/baratos) arriba.
+    .sort((a, b) => (a.includes('flash') === b.includes('flash') ? 0 : a.includes('flash') ? -1 : 1));
+}
+
 async function call(model, body) {
   const url = `${BASE}/models/${model}:generateContent?key=${encodeURIComponent(apiKey())}`;
   const res = await fetch(url, {

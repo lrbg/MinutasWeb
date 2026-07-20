@@ -1,6 +1,6 @@
 // Capa de presentación: conecta el DOM con las features.
 import { store } from './store.js';
-import { validateKey } from './api/gemini.js';
+import { validateKey, listModels } from './api/gemini.js';
 import { TranscriptionSession } from './features/transcription.js';
 import { generateMinute } from './features/minute.js';
 import { analyzeQuestions, answerQuestion } from './features/questions.js';
@@ -28,6 +28,8 @@ function cacheElements() {
   el.inputLanguage = $('#input-language');
   el.inputSegment = $('#input-segment');
   el.inputModel = $('#input-model');
+  el.modelsList = $('#models-list');
+  el.btnLoadModels = $('#btn-load-models');
   el.btnSaveSettings = $('#btn-save-settings');
 
   el.srcMic = $('#src-mic');
@@ -61,6 +63,7 @@ function cacheElements() {
 function bindEvents() {
   el.btnSettings.addEventListener('click', () => openModal(el.settingsModal));
   el.btnSaveSettings.addEventListener('click', saveSettings);
+  el.btnLoadModels.addEventListener('click', () => loadModels(false));
   document.querySelectorAll('[data-close-modal]').forEach((b) =>
     b.addEventListener('click', (e) => closeModal(e.target.closest('.modal')))
   );
@@ -108,8 +111,53 @@ async function saveSettings() {
   if (store.hasApiKey()) {
     try {
       const ok = await validateKey();
-      if (!ok) toast('La clave API parece inválida', true);
-    } catch { /* la validación es best-effort */ }
+      if (!ok) {
+        toast('La clave API parece inválida', true);
+        return;
+      }
+      // Con clave válida, cargamos los modelos disponibles y corregimos el
+      // elegido si no está en la lista de esta cuenta (evita el error 404).
+      await loadModels(true);
+    } catch { /* best-effort */ }
+  }
+}
+
+// Llena la lista de modelos disponibles para la clave del usuario.
+// auto=true: silencioso, solo avisa si tuvo que cambiar el modelo.
+async function loadModels(auto) {
+  if (!store.hasApiKey()) {
+    if (!auto) toast('Primero pega tu clave y pulsa Guardar', true);
+    return;
+  }
+  if (!auto) {
+    el.btnLoadModels.disabled = true;
+    el.btnLoadModels.textContent = 'Buscando…';
+  }
+  try {
+    const models = await listModels();
+    el.modelsList.innerHTML = '';
+    models.forEach((m) => {
+      const o = document.createElement('option');
+      o.value = m;
+      el.modelsList.appendChild(o);
+    });
+
+    const current = store.getSettings().model;
+    if (models.length && !models.includes(current)) {
+      const pick = models[0];
+      store.setSettings({ model: pick });
+      el.inputModel.value = pick;
+      toast(`El modelo "${current}" no está disponible. Se cambió a "${pick}".`);
+    } else if (!auto) {
+      toast(models.length ? `${models.length} modelos disponibles` : 'No se encontraron modelos');
+    }
+  } catch (err) {
+    if (!auto) toast(err.message, true);
+  } finally {
+    if (!auto) {
+      el.btnLoadModels.disabled = false;
+      el.btnLoadModels.textContent = 'Buscar modelos disponibles para mi clave';
+    }
   }
 }
 

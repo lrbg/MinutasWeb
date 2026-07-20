@@ -98,14 +98,13 @@
           <input id="input-segment" type="number" min="5" max="30" step="1" value="12" />
           <small>Segmentos más largos = menos llamadas a la API, pero el texto tarda más en aparecer.</small>
         </label>
-        <details class="field">
-          <summary>Modelo (avanzado)</summary>
-          <label class="subfield">
-            <span>Modelo de Gemini</span>
-            <input id="input-model" type="text" value="gemini-2.5-flash" spellcheck="false" />
-            <small>Un mismo modelo transcribe y redacta. Alternativas: gemini-2.0-flash, gemini-2.5-pro.</small>
-          </label>
-        </details>
+        <div class="field">
+          <span>Modelo de Gemini</span>
+          <input id="input-model" type="text" value="gemini-2.5-flash" spellcheck="false" list="models-list" />
+          <datalist id="models-list"></datalist>
+          <button id="btn-load-models" class="btn btn-ghost btn-sm" type="button">Buscar modelos disponibles para mi clave</button>
+          <small>Un mismo modelo transcribe y redacta. Si ves un error 404, pulsa el botón y elige uno de la lista.</small>
+        </div>
       </div>
       <div class="modal-foot">
         <button id="btn-save-settings" class="btn btn-primary" type="button">Guardar</button>
