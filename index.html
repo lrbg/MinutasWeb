@@ -95,15 +95,15 @@
         </label>
         <label class="field">
           <span>Duración de cada segmento (segundos)</span>
-          <input id="input-segment" type="number" min="5" max="60" step="1" value="20" />
+          <input id="input-segment" type="number" min="5" max="60" step="1" value="10" />
           <small>Segmentos más largos = menos llamadas a la API, pero el texto tarda más en aparecer.</small>
         </label>
         <details class="field">
           <summary>Modelos (avanzado)</summary>
           <label class="subfield">
             <span>Modelo de transcripción</span>
-            <input id="input-transcribe-model" type="text" value="gpt-4o-mini-transcribe" spellcheck="false" />
-            <small>Alternativa: whisper-1.</small>
+            <input id="input-transcribe-model" type="text" value="whisper-1" spellcheck="false" />
+            <small>Alternativa: gpt-4o-mini-transcribe.</small>
           </label>
           <label class="subfield">
             <span>Modelo de chat (minuta/preguntas)</span>

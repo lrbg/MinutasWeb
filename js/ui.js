@@ -100,8 +100,8 @@ async function saveSettings() {
   store.setApiKey(el.inputApiKey.value);
   store.setSettings({
     language: el.inputLanguage.value,
-    segmentSeconds: Math.max(5, Math.min(60, Number(el.inputSegment.value) || 20)),
-    transcribeModel: el.inputTranscribeModel.value.trim() || 'gpt-4o-mini-transcribe',
+    segmentSeconds: Math.max(5, Math.min(60, Number(el.inputSegment.value) || 10)),
+    transcribeModel: el.inputTranscribeModel.value.trim() || 'whisper-1',
     chatModel: el.inputChatModel.value.trim() || 'gpt-4o-mini',
   });
   closeModal(el.settingsModal);
