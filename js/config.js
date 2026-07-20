@@ -1,7 +1,10 @@
 // Configuración por defecto de MinutasWeb.
 // Los valores se pueden sobrescribir desde Ajustes (se guardan en localStorage).
 export const DEFAULTS = {
-  apiBase: 'https://api.openai.com/v1',
+  // URL del proxy (Cloudflare Worker). Vacío = sin configurar.
+  // OpenAI no permite llamadas directas desde el navegador (sin CORS), por eso
+  // todas las peticiones pasan por este relay. Ver worker.js.
+  proxyUrl: '',
   transcribeModel: 'gpt-4o-mini-transcribe',
   chatModel: 'gpt-4o-mini',
   language: 'es',

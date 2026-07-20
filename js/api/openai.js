@@ -8,6 +8,18 @@ function auth() {
   return key;
 }
 
+// URL base hacia la API, a través del proxy CORS.
+function baseUrl() {
+  const s = store.getSettings();
+  const proxy = (s.proxyUrl || '').trim().replace(/\/+$/, '');
+  if (!proxy) {
+    throw new Error(
+      'Falta la URL del proxy. Despliega el Worker de Cloudflare (worker.js) y pega su URL en Ajustes.'
+    );
+  }
+  return `${proxy}/v1`;
+}
+
 /**
  * Transcribe un blob de audio con el modelo configurado.
  * @param {Blob} blob  audio (webm/mp4) de un segmento
@@ -23,7 +35,7 @@ export async function transcribe(blob, { prompt } = {}) {
   if (s.language) form.append('language', s.language);
   if (prompt) form.append('prompt', prompt);
 
-  const res = await fetch(`${s.apiBase}/audio/transcriptions`, {
+  const res = await fetch(`${baseUrl()}/audio/transcriptions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${auth()}` },
     body: form,
@@ -44,7 +56,7 @@ export async function transcribe(blob, { prompt } = {}) {
  */
 export async function chat(messages, { temperature = 0.5, maxTokens = 1500 } = {}) {
   const s = store.getSettings();
-  const res = await fetch(`${s.apiBase}/chat/completions`, {
+  const res = await fetch(`${baseUrl()}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${auth()}`,
@@ -68,8 +80,7 @@ export async function chat(messages, { temperature = 0.5, maxTokens = 1500 } = {
 
 // Valida la clave con una llamada barata al listado de modelos.
 export async function validateKey() {
-  const s = store.getSettings();
-  const res = await fetch(`${s.apiBase}/models`, {
+  const res = await fetch(`${baseUrl()}/models`, {
     headers: { Authorization: `Bearer ${auth()}` },
   });
   return res.ok;

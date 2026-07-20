@@ -79,9 +79,14 @@
       </div>
       <div class="modal-body">
         <label class="field">
+          <span>URL del proxy (Cloudflare Worker)</span>
+          <input id="input-proxy" type="text" placeholder="https://tu-worker.workers.dev" autocomplete="off" spellcheck="false" />
+          <small>OpenAI no permite llamadas directas desde el navegador. Despliega worker.js y pega aquí su URL. Ver el README.</small>
+        </label>
+        <label class="field">
           <span>Clave API de OpenAI</span>
           <input id="input-apikey" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
-          <small>Se guarda solo en este navegador (localStorage) y solo se envía a api.openai.com.</small>
+          <small>Se guarda solo en este navegador (localStorage) y solo se envía a OpenAI a través del proxy.</small>
         </label>
         <label class="field">
           <span>Idioma de transcripción</span>

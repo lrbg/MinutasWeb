@@ -12,13 +12,33 @@ Es la versión web de una app de escritorio en Python/PyQt5: aquí no hay que in
 - **Traducción** de la minuta a inglés.
 - **Exportar** la transcripción (`.txt`) y la minuta (`.md`), o copiarlas al portapapeles.
 
+## Por qué hace falta un proxy
+
+OpenAI **no envía headers CORS**, así que ningún navegador permite llamar a
+`api.openai.com` directamente desde una web (daría "Failed to fetch"). La
+solución es un **relay CORS**: un Cloudflare Worker (gratis) que reenvía la
+petición a OpenAI y añade los headers que faltan. Tu clave viaja en la petición
+pero **el worker no la guarda ni la lee** — solo la pasa. El worker solo acepta
+peticiones desde tu app (lista blanca de orígenes), no es un proxy abierto.
+
+Se despliega **una sola vez**. Después solo usas el bookmark.
+
+### Desplegar el proxy (una vez, ~3 min)
+
+1. Entra a [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Create Worker**.
+2. Dale un nombre (ej. `minutasweb`) y pulsa **Deploy**.
+3. Pulsa **Edit code**, borra el ejemplo y pega el contenido de [`worker.js`](worker.js). Pulsa **Deploy** otra vez.
+4. Copia la URL del worker (algo como `https://minutasweb.tu-usuario.workers.dev`).
+5. Si tu app **no** está en `https://lrbg.github.io`, edita `ALLOWED_ORIGINS` en `worker.js` y añade tu dominio.
+
 ## Cómo se usa
 
 1. Abre la app (ver *Publicar* abajo) y entra a **Ajustes**.
-2. Pega tu **clave API de OpenAI** (`sk-...`). Se guarda **solo en tu navegador** (`localStorage`) y solo se envía a `api.openai.com`. No hay backend intermedio.
-3. Elige las fuentes de audio y pulsa **Grabar**.
+2. Pega la **URL del proxy** (el worker de arriba).
+3. Pega tu **clave API de OpenAI** (`sk-...`). Se guarda **solo en tu navegador** (`localStorage`).
+4. Elige las fuentes de audio y pulsa **Grabar**.
    - Para "Audio de pestaña", el navegador te pedirá elegir una pestaña y marcar **"Compartir audio"**.
-4. Al terminar, pulsa **Generar minuta**.
+5. Al terminar, pulsa **Generar minuta**.
 
 ## Requisitos y límites
 
@@ -55,8 +75,11 @@ js/
     questions.js      # detección de preguntas y respuestas
     translate.js      # traducción
 manifest.json         # PWA
+worker.js             # relay CORS (Cloudflare Worker)
 ```
 
 ## Privacidad
 
-Tu clave API y tus transcripciones **no salen de tu navegador** salvo las llamadas directas a OpenAI. No hay analítica ni servidor propio.
+Tu clave API y tus transcripciones se guardan **solo en tu navegador**. Las
+peticiones a OpenAI pasan por tu propio Cloudflare Worker, que solo las reenvía
+sin almacenar nada. No hay analítica ni base de datos.
