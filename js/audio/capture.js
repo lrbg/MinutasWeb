@@ -1,21 +1,37 @@
-// Captura de audio de dos fuentes (micrófono y pestaña) en segmentos
-// independientes listos para mandar a transcribir.
+// Captura de audio de dos fuentes (micrófono y pestaña) en segmentos WAV.
 //
-// Cada fuente graba en ciclos: start() -> a los N segundos stop() -> el blob
-// resultante es un archivo webm/mp4 válido por sí solo -> callback -> reinicia.
-// Un AnalyserNode mide el nivel para (a) pintar el medidor y (b) descartar
-// segmentos que fueron prácticamente silencio.
+// Gemini acepta WAV/MP3/OGG/FLAC pero NO el webm/opus que produce MediaRecorder
+// en Chrome. Por eso capturamos el PCM con Web Audio (a 16 kHz mono) y armamos
+// un WAV por segmento. Un medidor de nivel sirve para pintar la barra y para
+// descartar segmentos que fueron prácticamente silencio.
 
-function pickMimeType() {
-  const candidates = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/mp4',
-  ];
-  for (const t of candidates) {
-    if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
+// Convierte muestras Float32 mono a un Blob WAV PCM 16-bit.
+function pcmToWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (off, s) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  let off = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
   }
-  return '';
+  return new Blob([view], { type: 'audio/wav' });
 }
 
 class SourceRecorder {
@@ -27,87 +43,82 @@ class SourceRecorder {
     this.onSegment = onSegment;
     this.onLevel = onLevel;
     this.active = false;
+    this.chunks = [];
+    this.samplesInSegment = 0;
     this.peak = 0;
-    this.mimeType = pickMimeType();
-    this._chunks = [];
-    this._raf = null;
-    this._timer = null;
   }
 
   start() {
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    this.sampleRate = this.ctx.sampleRate; // puede no ser exactamente 16000
+    this.segmentSamples = Math.floor((this.sampleRate * this.segmentMs) / 1000);
+
+    this.srcNode = this.ctx.createMediaStreamSource(this.stream);
+    this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
+
+    this.processor.onaudioprocess = (e) => {
+      if (!this.active) return;
+      const input = e.inputBuffer.getChannelData(0);
+      this.chunks.push(new Float32Array(input));
+      this.samplesInSegment += input.length;
+
+      // Nivel (RMS) para el medidor y la detección de silencio.
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      const level = Math.min(100, Math.round(Math.sqrt(sum / input.length) * 300));
+      this.peak = Math.max(this.peak, level);
+      this.onLevel(this.source, level);
+
+      if (this.samplesInSegment >= this.segmentSamples) this._flush();
+    };
+
+    // El nodo debe estar conectado para procesar; un gain a 0 evita el eco.
+    this.mute = this.ctx.createGain();
+    this.mute.gain.value = 0;
+    this.srcNode.connect(this.processor);
+    this.processor.connect(this.mute);
+    this.mute.connect(this.ctx.destination);
+
     this.active = true;
-    this._setupMeter();
-    this._cycle();
   }
 
-  _setupMeter() {
-    try {
-      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = this.audioCtx.createMediaStreamSource(this.stream);
-      this.analyser = this.audioCtx.createAnalyser();
-      this.analyser.fftSize = 512;
-      src.connect(this.analyser);
-      this._data = new Uint8Array(this.analyser.frequencyBinCount);
-      this._tick();
-    } catch {
-      // Si el medidor falla, seguimos grabando sin él.
+  _flush() {
+    const total = this.samplesInSegment;
+    if (total === 0) return;
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (const chunk of this.chunks) {
+      merged.set(chunk, off);
+      off += chunk.length;
     }
-  }
-
-  _tick() {
-    if (!this.active || !this.analyser) return;
-    this.analyser.getByteTimeDomainData(this._data);
-    let sum = 0;
-    for (let i = 0; i < this._data.length; i++) {
-      const v = (this._data[i] - 128) / 128;
-      sum += v * v;
-    }
-    const level = Math.min(100, Math.round(Math.sqrt(sum / this._data.length) * 240));
-    this.peak = Math.max(this.peak, level);
-    if (this.onLevel) this.onLevel(this.source, level);
-    this._raf = requestAnimationFrame(() => this._tick());
-  }
-
-  _cycle() {
-    if (!this.active) return;
-    this._chunks = [];
+    const hadVoice = this.peak >= this.silenceThreshold;
+    this.chunks = [];
+    this.samplesInSegment = 0;
     this.peak = 0;
-    this.recorder = new MediaRecorder(
-      this.stream,
-      this.mimeType ? { mimeType: this.mimeType } : undefined
-    );
-    this.recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) this._chunks.push(e.data);
-    };
-    this.recorder.onstop = () => {
-      const hadVoice = this.peak >= this.silenceThreshold;
-      if (this._chunks.length && hadVoice) {
-        const blob = new Blob(this._chunks, { type: this.mimeType || 'audio/webm' });
-        this.onSegment(blob, this.source);
-      }
-      if (this.active) this._cycle();
-    };
-    this.recorder.start();
-    this._timer = setTimeout(() => {
-      if (this.recorder && this.recorder.state === 'recording') this.recorder.stop();
-    }, this.segmentMs);
+
+    if (hadVoice) {
+      this.onSegment(pcmToWav(merged, this.sampleRate), this.source);
+    }
   }
 
   stop() {
     this.active = false;
-    clearTimeout(this._timer);
-    if (this._raf) cancelAnimationFrame(this._raf);
+    this._flush(); // envía lo que quede del último segmento
     if (this.onLevel) this.onLevel(this.source, 0);
     try {
-      if (this.recorder && this.recorder.state === 'recording') this.recorder.stop();
-    } catch { /* noop */ }
-    if (this.audioCtx) this.audioCtx.close().catch(() => {});
+      if (this.processor) this.processor.disconnect();
+      if (this.mute) this.mute.disconnect();
+      if (this.srcNode) this.srcNode.disconnect();
+      if (this.ctx) this.ctx.close();
+    } catch {
+      /* noop */
+    }
     this.stream.getTracks().forEach((t) => t.stop());
   }
 }
 
 export class AudioCapture {
-  constructor({ segmentSeconds = 12, silenceThreshold = 4, onSegment, onLevel } = {}) {
+  constructor({ segmentSeconds = 15, silenceThreshold = 4, onSegment, onLevel } = {}) {
     this.segmentMs = segmentSeconds * 1000;
     this.silenceThreshold = silenceThreshold;
     this.onSegment = onSegment;
@@ -124,21 +135,15 @@ export class AudioCapture {
   }
 
   // Arranca la captura de audio de una pestaña compartida.
-  // El usuario debe elegir una pestaña y marcar "compartir audio".
   async startTab() {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: true,
-    });
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     const audioTracks = stream.getAudioTracks();
     if (audioTracks.length === 0) {
       stream.getTracks().forEach((t) => t.stop());
       throw new Error('No compartiste audio. Vuelve a intentar y marca "Compartir audio de la pestaña".');
     }
-    // Descartamos el video: solo queremos el audio.
     stream.getVideoTracks().forEach((t) => t.stop());
-    const audioOnly = new MediaStream(audioTracks);
-    this._addSource(audioOnly, 'tab');
+    this._addSource(new MediaStream(audioTracks), 'tab');
   }
 
   _addSource(stream, source) {
@@ -163,5 +168,3 @@ export class AudioCapture {
     return this.recorders.length;
   }
 }
-
-export { pickMimeType };

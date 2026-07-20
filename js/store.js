@@ -31,9 +31,7 @@ export const store = {
   },
   setSettings(partial) {
     const merged = { ...this.getSettings(), ...partial };
-    // No guardamos las constantes que no cambian por defecto.
-    const { apiBase, ...persist } = merged;
-    localStorage.setItem(K.settings, JSON.stringify(persist));
+    localStorage.setItem(K.settings, JSON.stringify(merged));
     return merged;
   },
 

@@ -79,14 +79,9 @@
       </div>
       <div class="modal-body">
         <label class="field">
-          <span>URL del proxy (Cloudflare Worker)</span>
-          <input id="input-proxy" type="text" placeholder="https://tu-worker.workers.dev" autocomplete="off" spellcheck="false" />
-          <small>OpenAI no permite llamadas directas desde el navegador. Despliega worker.js y pega aquí su URL. Ver el README.</small>
-        </label>
-        <label class="field">
-          <span>Clave API de OpenAI</span>
-          <input id="input-apikey" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
-          <small>Se guarda solo en este navegador (localStorage) y solo se envía a OpenAI a través del proxy.</small>
+          <span>Clave API de Google (AI Studio)</span>
+          <input id="input-apikey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+          <small>Créala gratis en aistudio.google.com/apikey. Se guarda solo en este navegador (localStorage) y solo se envía a Google.</small>
         </label>
         <label class="field">
           <span>Idioma de transcripción</span>
@@ -104,14 +99,11 @@
           <small>Segmentos más largos = menos llamadas a la API, pero el texto tarda más en aparecer.</small>
         </label>
         <details class="field">
-          <summary>Modelos (avanzado)</summary>
+          <summary>Modelo (avanzado)</summary>
           <label class="subfield">
-            <span>Modelo de transcripción</span>
-            <input id="input-transcribe-model" type="text" value="gpt-4o-mini-transcribe" spellcheck="false" />
-          </label>
-          <label class="subfield">
-            <span>Modelo de chat (minuta/preguntas)</span>
-            <input id="input-chat-model" type="text" value="gpt-4o-mini" spellcheck="false" />
+            <span>Modelo de Gemini</span>
+            <input id="input-model" type="text" value="gemini-2.5-flash" spellcheck="false" />
+            <small>Un mismo modelo transcribe y redacta. Alternativas: gemini-2.0-flash, gemini-2.5-pro.</small>
           </label>
         </details>
       </div>

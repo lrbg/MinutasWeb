@@ -1,8 +1,7 @@
 // Orquesta una sesión de transcripción: captura -> segmentos -> Whisper -> texto.
 import { AudioCapture } from '../audio/capture.js';
-import { transcribe } from '../api/openai.js';
+import { transcribe } from '../api/gemini.js';
 import { store } from '../store.js';
-import { TRANSCRIBE_PROMPT } from '../config.js';
 import { looksLikeQuestion } from './questions.js';
 
 export class TranscriptionSession {
@@ -38,7 +37,7 @@ export class TranscriptionSession {
   async _handleSegment(blob, source) {
     this.pending++;
     try {
-      const text = await transcribe(blob, { prompt: TRANSCRIBE_PROMPT });
+      const text = await transcribe(blob);
       if (text) {
         const entry = {
           text,

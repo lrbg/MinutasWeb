@@ -1,6 +1,6 @@
 // Capa de presentación: conecta el DOM con las features.
 import { store } from './store.js';
-import { validateKey } from './api/openai.js';
+import { validateKey } from './api/gemini.js';
 import { TranscriptionSession } from './features/transcription.js';
 import { generateMinute } from './features/minute.js';
 import { analyzeQuestions, answerQuestion } from './features/questions.js';
@@ -24,12 +24,10 @@ function cacheElements() {
   el.apiBadge = $('#api-badge');
   el.btnSettings = $('#btn-settings');
   el.settingsModal = $('#settings-modal');
-  el.inputProxy = $('#input-proxy');
   el.inputApiKey = $('#input-apikey');
   el.inputLanguage = $('#input-language');
   el.inputSegment = $('#input-segment');
-  el.inputTranscribeModel = $('#input-transcribe-model');
-  el.inputChatModel = $('#input-chat-model');
+  el.inputModel = $('#input-model');
   el.btnSaveSettings = $('#btn-save-settings');
 
   el.srcMic = $('#src-mic');
@@ -90,22 +88,18 @@ function bindEvents() {
 /* ---------- Ajustes ---------- */
 function loadSettingsIntoForm() {
   const s = store.getSettings();
-  el.inputProxy.value = s.proxyUrl || '';
   el.inputApiKey.value = store.getApiKey();
   el.inputLanguage.value = s.language;
   el.inputSegment.value = s.segmentSeconds;
-  el.inputTranscribeModel.value = s.transcribeModel;
-  el.inputChatModel.value = s.chatModel;
+  el.inputModel.value = s.model;
 }
 
 async function saveSettings() {
   store.setApiKey(el.inputApiKey.value);
   store.setSettings({
-    proxyUrl: el.inputProxy.value.trim().replace(/\/+$/, ''),
     language: el.inputLanguage.value,
-    segmentSeconds: Math.max(5, Math.min(30, Number(el.inputSegment.value) || 12)),
-    transcribeModel: el.inputTranscribeModel.value.trim() || 'gpt-4o-mini-transcribe',
-    chatModel: el.inputChatModel.value.trim() || 'gpt-4o-mini',
+    segmentSeconds: Math.max(5, Math.min(30, Number(el.inputSegment.value) || 15)),
+    model: el.inputModel.value.trim() || 'gemini-2.5-flash',
   });
   closeModal(el.settingsModal);
   refreshApiBadge();
@@ -120,13 +114,9 @@ async function saveSettings() {
 }
 
 function refreshApiBadge() {
-  const hasProxy = !!store.getSettings().proxyUrl;
-  if (store.hasApiKey() && hasProxy) {
-    el.apiBadge.textContent = 'Listo';
+  if (store.hasApiKey()) {
+    el.apiBadge.textContent = 'Clave lista';
     el.apiBadge.className = 'badge badge-ok';
-  } else if (!hasProxy) {
-    el.apiBadge.textContent = 'Falta proxy';
-    el.apiBadge.className = 'badge badge-warn';
   } else {
     el.apiBadge.textContent = 'Sin clave API';
     el.apiBadge.className = 'badge badge-warn';
@@ -139,13 +129,8 @@ async function toggleRecording() {
     stopRecording();
     return;
   }
-  if (!store.getSettings().proxyUrl) {
-    toast('Falta la URL del proxy. Configúrala en Ajustes (ver README).', true);
-    openModal(el.settingsModal);
-    return;
-  }
   if (!store.hasApiKey()) {
-    toast('Primero agrega tu clave API en Ajustes', true);
+    toast('Primero agrega tu clave API de Google en Ajustes', true);
     openModal(el.settingsModal);
     return;
   }

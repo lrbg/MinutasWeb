@@ -1,5 +1,5 @@
 // Detección de preguntas (por reglas y con IA) y generación de respuestas.
-import { chat } from '../api/openai.js';
+import { chat } from '../api/gemini.js';
 
 const INTERROGATIVES = [
   'qué', 'que', 'quién', 'quien', 'cuándo', 'cuando', 'dónde', 'donde',

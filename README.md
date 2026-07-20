@@ -1,8 +1,8 @@
 # MinutasWeb
 
-Transcribe reuniones en vivo y genera minutas con IA, **todo en el navegador**. Sin instalar nada, sin servidor propio.
+Transcribe reuniones en vivo y genera minutas con IA, **todo en el navegador**. Sin instalar nada, sin servidor, sin proxy.
 
-Es la versión web de una app de escritorio en Python/PyQt5: aquí no hay que instalar Python, PyAudio ni empaquetar nada. Abres una URL, la guardas como favorito y listo.
+Es la versión web de una app de escritorio en Python/PyQt5: aquí no hay que instalar Python ni empaquetar nada. Abres una URL, la guardas como favorito y listo. Usa **Google Gemini**, que permite llamarse directamente desde el navegador (a diferencia de OpenAI, que requiere un proxy por su política CORS).
 
 ## Qué hace
 
@@ -12,40 +12,20 @@ Es la versión web de una app de escritorio en Python/PyQt5: aquí no hay que in
 - **Traducción** de la minuta a inglés.
 - **Exportar** la transcripción (`.txt`) y la minuta (`.md`), o copiarlas al portapapeles.
 
-## Por qué hace falta un proxy
-
-OpenAI **no envía headers CORS**, así que ningún navegador permite llamar a
-`api.openai.com` directamente desde una web (daría "Failed to fetch"). La
-solución es un **relay CORS**: un Cloudflare Worker (gratis) que reenvía la
-petición a OpenAI y añade los headers que faltan. Tu clave viaja en la petición
-pero **el worker no la guarda ni la lee** — solo la pasa. El worker solo acepta
-peticiones desde tu app (lista blanca de orígenes), no es un proxy abierto.
-
-Se despliega **una sola vez**. Después solo usas el bookmark.
-
-### Desplegar el proxy (una vez, ~3 min)
-
-1. Entra a [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Create Worker**.
-2. Dale un nombre (ej. `minutasweb`) y pulsa **Deploy**.
-3. Pulsa **Edit code**, borra el ejemplo y pega el contenido de [`worker.js`](worker.js). Pulsa **Deploy** otra vez.
-4. Copia la URL del worker (algo como `https://minutasweb.tu-usuario.workers.dev`).
-5. Si tu app **no** está en `https://lrbg.github.io`, edita `ALLOWED_ORIGINS` en `worker.js` y añade tu dominio.
-
 ## Cómo se usa
 
-1. Abre la app (ver *Publicar* abajo) y entra a **Ajustes**.
-2. Pega la **URL del proxy** (el worker de arriba).
-3. Pega tu **clave API de OpenAI** (`sk-...`). Se guarda **solo en tu navegador** (`localStorage`).
-4. Elige las fuentes de audio y pulsa **Grabar**.
+1. Consigue una **clave API gratuita** en [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (empieza con `AIza...`).
+2. Abre la app (ver *Publicar* abajo) → **Ajustes** → pega la clave. Se guarda **solo en tu navegador** (`localStorage`) y solo se envía a Google.
+3. Elige las fuentes de audio y pulsa **Grabar**.
    - Para "Audio de pestaña", el navegador te pedirá elegir una pestaña y marcar **"Compartir audio"**.
-5. Al terminar, pulsa **Generar minuta**.
+4. Al terminar, pulsa **Generar minuta**.
 
 ## Requisitos y límites
 
 - **Navegador**: Chrome o Edge (necesarios para capturar audio de pestaña con `getDisplayMedia`). El micrófono funciona en cualquiera.
 - **Captura de "los demás"**: solo funciona si la reunión corre en una **pestaña del navegador**. Con la app **nativa** de Zoom/Teams, el navegador no puede tomar ese audio; ahí solo se transcribe tu micrófono.
-- **Costo**: usa tu propia cuota de OpenAI. La transcripción se cobra por minuto de audio; la minuta y las respuestas, por tokens.
-- La transcripción se hace por segmentos (~12s configurable): el texto aparece cada pocos segundos, no palabra por palabra.
+- **Costo**: usa tu propia clave de Google AI Studio. El plan gratuito tiene un límite de peticiones por minuto; por eso la app transcribe en segmentos de ~15s (configurable). Si te topas con el límite, sube la duración del segmento en Ajustes.
+- El texto aparece cada pocos segundos (por segmento), no palabra por palabra.
 
 ## Publicar (GitHub Pages)
 
@@ -64,22 +44,23 @@ index.html            # UI
 css/styles.css        # estilos (tema claro/oscuro automático)
 js/
   main.js             # arranque
-  config.js           # valores por defecto
+  config.js           # valores por defecto (modelo, idioma, segmento)
   store.js            # localStorage (clave, ajustes, historial)
   ui.js               # DOM y eventos
-  api/openai.js       # cliente de OpenAI (transcribe + chat)
-  audio/capture.js    # micrófono + pestaña, segmentación y medidores
+  api/gemini.js       # cliente de Google Gemini (transcribe + genera texto)
+  audio/capture.js    # micrófono + pestaña, captura PCM y arma WAV, medidores
   features/
     transcription.js  # orquesta la sesión de transcripción
     minute.js         # genera la minuta
     questions.js      # detección de preguntas y respuestas
     translate.js      # traducción
 manifest.json         # PWA
-worker.js             # relay CORS (Cloudflare Worker)
 ```
+
+## Nota técnica
+
+Gemini acepta audio en WAV/MP3/OGG/FLAC, pero no el `webm/opus` que graba Chrome por defecto. Por eso `capture.js` toma el audio crudo (PCM) con la Web Audio API a 16 kHz y arma un WAV por segmento antes de enviarlo.
 
 ## Privacidad
 
-Tu clave API y tus transcripciones se guardan **solo en tu navegador**. Las
-peticiones a OpenAI pasan por tu propio Cloudflare Worker, que solo las reenvía
-sin almacenar nada. No hay analítica ni base de datos.
+Tu clave API y tus transcripciones se guardan **solo en tu navegador**. Las peticiones van directas a la API de Google, sin intermediarios. No hay analítica ni base de datos.
