@@ -101,7 +101,7 @@ async function saveSettings() {
   store.setApiKey(el.inputApiKey.value);
   store.setSettings({
     language: el.inputLanguage.value,
-    segmentSeconds: Math.max(5, Math.min(30, Number(el.inputSegment.value) || 15)),
+    segmentSeconds: Math.max(5, Math.min(60, Number(el.inputSegment.value) || 20)),
     model: el.inputModel.value.trim() || 'gemini-2.5-flash',
   });
   closeModal(el.settingsModal);

@@ -6,7 +6,7 @@ export const DEFAULTS = {
   language: 'es',
   // Segmentos algo largos para no pasarse del límite de peticiones por minuto
   // del plan gratuito de Gemini.
-  segmentSeconds: 15,
+  segmentSeconds: 20,
   // Nivel mínimo de audio (0-100) para considerar que un segmento tiene voz.
   // Evita mandar silencios a la API.
   silenceThreshold: 4,

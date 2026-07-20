@@ -94,17 +94,46 @@ export async function listModels() {
     .sort((a, b) => (a.includes('flash') === b.includes('flash') ? 0 : a.includes('flash') ? -1 : 1));
 }
 
-async function call(model, body) {
+async function call(model, body, retries = 3) {
   const url = `${BASE}/models/${model}:generateContent?key=${encodeURIComponent(apiKey())}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return res.json();
+
+    // 429 = límite de peticiones. Reintentar respetando la espera que pide
+    // Gemini (o un backoff exponencial), hasta agotar los intentos.
+    if (res.status === 429 && attempt < retries) {
+      const info = await res.clone().json().catch(() => null);
+      const delay = retryDelayMs(info) ?? Math.min(30000, 2000 * 2 ** attempt);
+      await sleep(delay);
+      continue;
+    }
+    if (res.status === 429) {
+      throw new Error(
+        'Límite de peticiones de Gemini alcanzado (429). El plan gratuito permite pocas ' +
+          'llamadas por minuto. Prueba: transcribir solo una fuente, subir la duración del ' +
+          'segmento en Ajustes, o elegir un modelo con más cuota (p. ej. gemini-2.5-flash-lite). ' +
+          'Si se agotó la cuota diaria, hay que esperar al día siguiente.'
+      );
+    }
     throw new Error(`Gemini respondió con error (${res.status}): ${await safeError(res)}`);
   }
-  return res.json();
+}
+
+// Lee el "retryDelay" que Gemini incluye en el error 429 (RetryInfo).
+function retryDelayMs(errJson) {
+  const details = errJson?.error?.details || [];
+  const retry = details.find((d) => (d['@type'] || '').includes('RetryInfo'));
+  const m = retry?.retryDelay && /([0-9.]+)s/.exec(retry.retryDelay);
+  return m ? Math.ceil(parseFloat(m[1]) * 1000) : null;
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function extractText(data) {
