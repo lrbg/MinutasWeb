@@ -44,6 +44,7 @@ function cacheElements() {
   el.transcript = $('#transcript');
   el.transcriptEmpty = $('#transcript-empty');
   el.btnMinute = $('#btn-minute');
+  el.btnSyncPolibio = $('#btn-sync-polibio');
   el.btnExport = $('#btn-export');
   el.btnCopy = $('#btn-copy');
   el.btnClear = $('#btn-clear');
@@ -75,6 +76,7 @@ function bindEvents() {
 
   el.btnRecord.addEventListener('click', toggleRecording);
   el.btnMinute.addEventListener('click', doMinute);
+  el.btnSyncPolibio.addEventListener('click', syncToPolibio);
   el.btnExport.addEventListener('click', exportTranscript);
   el.btnCopy.addEventListener('click', copyTranscript);
   el.btnClear.addEventListener('click', clearAll);
@@ -211,7 +213,7 @@ function setStatus(text) {
 }
 
 function setToolButtons(hasData) {
-  [el.btnMinute, el.btnExport, el.btnCopy, el.btnClear, el.btnAnalyzeQ].forEach(
+  [el.btnMinute, el.btnSyncPolibio, el.btnExport, el.btnCopy, el.btnClear, el.btnAnalyzeQ].forEach(
     (b) => (b.disabled = !hasData)
   );
 }
@@ -273,6 +275,43 @@ async function doAnalyzeQuestions() {
 }
 
 /* ---------- Minuta ---------- */
+// Sube la minuta + la transcripción al Anotador de Polibio con un clic.
+async function syncToPolibio() {
+  if (!session || !session.entries.length) {
+    toast('No hay transcripción para sincronizar', true);
+    return;
+  }
+  if (!polibioConfigured()) {
+    toast('Pega tu token de Polibio en Ajustes primero', true);
+    openModal(el.settingsModal);
+    return;
+  }
+  el.btnSyncPolibio.disabled = true;
+  const original = 'Sincronizar con Polibio';
+  try {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '');
+    const transcript = session.getTranscript();
+
+    // Usa la minuta ya generada, o la genera al vuelo.
+    let minute = lastMinute;
+    if (!minute) {
+      el.btnSyncPolibio.textContent = 'Generando minuta…';
+      minute = await generateMinute(transcript);
+      lastMinute = minute;
+    }
+
+    el.btnSyncPolibio.textContent = 'Enviando a Polibio…';
+    await sendToPolibio(minute, `minuta_${stamp}.md`);
+    await sendToPolibio(transcript, `transcripcion_${stamp}.txt`);
+    toast('Minuta y transcripción guardadas en tu Anotador de Polibio');
+  } catch (e) {
+    toast('No se pudo sincronizar: ' + e.message, true);
+  } finally {
+    el.btnSyncPolibio.disabled = false;
+    el.btnSyncPolibio.textContent = original;
+  }
+}
+
 async function doMinute() {
   if (!session || !session.entries.length) {
     toast('No hay transcripción todavía', true);
