@@ -5,6 +5,7 @@ import { TranscriptionSession } from './features/transcription.js';
 import { generateMinute } from './features/minute.js';
 import { analyzeQuestions, answerQuestion } from './features/questions.js';
 import { translate } from './features/translate.js';
+import { sendToPolibio, polibioConfigured } from './features/polibio.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -25,6 +26,7 @@ function cacheElements() {
   el.btnSettings = $('#btn-settings');
   el.settingsModal = $('#settings-modal');
   el.inputApiKey = $('#input-apikey');
+  el.inputPolibioToken = $('#input-polibio-token');
   el.inputLanguage = $('#input-language');
   el.inputSegment = $('#input-segment');
   el.inputTranscribeModel = $('#input-transcribe-model');
@@ -90,6 +92,7 @@ function bindEvents() {
 function loadSettingsIntoForm() {
   const s = store.getSettings();
   el.inputApiKey.value = store.getApiKey();
+  el.inputPolibioToken.value = store.getPolibioToken();
   el.inputLanguage.value = s.language;
   el.inputSegment.value = s.segmentSeconds;
   el.inputTranscribeModel.value = s.transcribeModel;
@@ -98,6 +101,7 @@ function loadSettingsIntoForm() {
 
 async function saveSettings() {
   store.setApiKey(el.inputApiKey.value);
+  store.setPolibioToken(el.inputPolibioToken.value);
   store.setSettings({
     language: el.inputLanguage.value,
     segmentSeconds: Math.max(5, Math.min(60, Number(el.inputSegment.value) || 10)),
@@ -284,6 +288,14 @@ async function doMinute() {
     el.minuteStatus.hidden = true;
     el.minuteOutput.innerHTML = mdToHtml(md);
     store.addToHistory({ date: new Date().toISOString(), minute: md });
+
+    // Sincronizar con el Anotador de Reuniones de Polibio (si hay token).
+    if (polibioConfigured()) {
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '');
+      sendToPolibio(md, `minuta_${stamp}.md`)
+        .then((r) => { if (!r?.skipped) toast('Minuta guardada en tu Anotador de Polibio'); })
+        .catch((e) => toast('No se pudo enviar a Polibio: ' + e.message, true));
+    }
   } catch (err) {
     el.minuteStatus.hidden = true;
     el.minuteOutput.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;

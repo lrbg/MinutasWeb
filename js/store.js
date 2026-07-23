@@ -19,6 +19,15 @@ export const store = {
     return !!this.getApiKey();
   },
 
+  // Token del Anotador de Polibio (para sincronizar minutas). Solo en el navegador.
+  getPolibioToken() {
+    return localStorage.getItem('minutasweb.polibioToken') || '';
+  },
+  setPolibioToken(value) {
+    if (value) localStorage.setItem('minutasweb.polibioToken', value.trim());
+    else localStorage.removeItem('minutasweb.polibioToken');
+  },
+
   // Ajustes: se combinan con los valores por defecto.
   getSettings() {
     let saved = {};
