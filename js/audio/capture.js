@@ -54,6 +54,27 @@ class SourceRecorder {
     this.segmentSamples = Math.floor((this.sampleRate * this.segmentMs) / 1000);
 
     this.srcNode = this.ctx.createMediaStreamSource(this.stream);
+
+    // ── Cadena de limpieza de voz (antes de encodear) ──
+    // Pasa-altos: elimina rumble/zumbido de baja frecuencia (aire, ventilador, golpes).
+    this.highpass = this.ctx.createBiquadFilter();
+    this.highpass.type = 'highpass';
+    this.highpass.frequency.value = 90;
+    // Pasa-bajos suave: recorta siseo muy agudo sin sonar telefónico.
+    this.lowpass = this.ctx.createBiquadFilter();
+    this.lowpass.type = 'lowpass';
+    this.lowpass.frequency.value = 7500;
+    // Compresor: nivela la dinámica y realza la voz baja sobre el ruido de fondo.
+    this.comp = this.ctx.createDynamicsCompressor();
+    this.comp.threshold.value = -40;
+    this.comp.knee.value = 30;
+    this.comp.ratio.value = 12;
+    this.comp.attack.value = 0.003;
+    this.comp.release.value = 0.25;
+    // Ganancia de realce tras el compresor.
+    this.makeup = this.ctx.createGain();
+    this.makeup.gain.value = 1.6;
+
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
 
     this.processor.onaudioprocess = (e) => {
@@ -75,7 +96,12 @@ class SourceRecorder {
     // El nodo debe estar conectado para procesar; un gain a 0 evita el eco.
     this.mute = this.ctx.createGain();
     this.mute.gain.value = 0;
-    this.srcNode.connect(this.processor);
+    // source → highpass → lowpass → compresor → realce → processor → mute(0) → destino
+    this.srcNode.connect(this.highpass);
+    this.highpass.connect(this.lowpass);
+    this.lowpass.connect(this.comp);
+    this.comp.connect(this.makeup);
+    this.makeup.connect(this.processor);
     this.processor.connect(this.mute);
     this.mute.connect(this.ctx.destination);
 
@@ -97,6 +123,17 @@ class SourceRecorder {
     this.peak = 0;
 
     if (hadVoice) {
+      // Normalizar el segmento: sube la voz baja a buen volumen (con tope de
+      // amplificación para no inflar el ruido de fondo cuando casi no hay señal).
+      let peakAmp = 0;
+      for (let i = 0; i < merged.length; i++) {
+        const a = merged[i] < 0 ? -merged[i] : merged[i];
+        if (a > peakAmp) peakAmp = a;
+      }
+      if (peakAmp > 0.002) {
+        const gain = Math.min(4, 0.95 / peakAmp);
+        for (let i = 0; i < merged.length; i++) merged[i] *= gain;
+      }
       this.onSegment(pcmToWav(merged, this.sampleRate), this.source);
     }
   }
@@ -106,9 +143,9 @@ class SourceRecorder {
     this._flush(); // envía lo que quede del último segmento
     if (this.onLevel) this.onLevel(this.source, 0);
     try {
-      if (this.processor) this.processor.disconnect();
-      if (this.mute) this.mute.disconnect();
-      if (this.srcNode) this.srcNode.disconnect();
+      for (const n of [this.processor, this.mute, this.makeup, this.comp, this.lowpass, this.highpass, this.srcNode]) {
+        if (n) n.disconnect();
+      }
       if (this.ctx) this.ctx.close();
     } catch {
       /* noop */
@@ -129,7 +166,7 @@ export class AudioCapture {
   // Arranca el micrófono. Lanza si el usuario niega el permiso.
   async startMic() {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     this._addSource(stream, 'mic');
   }
